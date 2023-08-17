@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"log"
+	"math"
 	"os"
 	"strconv"
 	"strings"
@@ -17,18 +18,23 @@ type Folder struct {
 	Parent     *Folder
 }
 
-func (folder *Folder) SumOfSizes() int {
-	totalSize := 0
+func (f *Folder) CalculateTotalSize() int {
+	totalSize := f.Size
 
-	if folder.Size <= 100000 {
-		totalSize += folder.Size
+	for _, subFolder := range f.SubFolders {
+		totalSize += subFolder.CalculateTotalSize()
 	}
-
-	for _, subfolder := range folder.SubFolders {
-		totalSize += subfolder.SumOfSizes()
-	}
-
 	return totalSize
+}
+
+func (f *Folder) TraverseAndCalculateSizes() []int {
+	var sizes []int
+	sizes = append(sizes, f.CalculateTotalSize())
+	for _, subFolder := range f.SubFolders {
+		subSizes := subFolder.TraverseAndCalculateSizes()
+		sizes = append(sizes, subSizes...)
+	}
+	return sizes
 }
 
 func main() {
@@ -37,7 +43,6 @@ func main() {
 	scanner := bufio.NewScanner(file)
 	rootFolder := &Folder{Name: "/", Size: 0, SubFolders: nil, Parent: nil}
 	var currentFolder *Folder
-	sizes := make(map[string]int)
 
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -46,9 +51,7 @@ func main() {
 			if lineSplit[2] == "/" {
 				currentFolder = rootFolder
 			} else if lineSplit[2] == ".." {
-				currentFolder.Parent.Size += currentFolder.Size
 				currentFolder = currentFolder.Parent
-				sizes = UpdateSize(sizes, currentFolder.Name, currentFolder.Size)
 			} else {
 				newFolder := Folder{
 					Name:       lineSplit[2],
@@ -65,34 +68,33 @@ func main() {
 		}
 	}
 
-	//If not in root folder
-	for currentFolder.Name != "/" {
-		currentFolder.Parent.Size += currentFolder.Size
-		currentFolder = currentFolder.Parent
-		sizes = UpdateSize(sizes, currentFolder.Name, currentFolder.Size)
-	}
-
-	log.Println("FolderSize of root folder:", rootFolder.Size)
-	log.Println("Sum of sizes smaller than 100000:", rootFolder.SumOfSizes())
-	neededSpace := 30000000 - (70000000 - rootFolder.Size)
+	slices := rootFolder.TraverseAndCalculateSizes()
+	log.Println("FolderSize of root folder:", rootFolder.CalculateTotalSize())
+	log.Println("Sum of sizes smaller than 100000:", part1(slices))
+	neededSpace := 30000000 - (70000000 - rootFolder.CalculateTotalSize())
 	log.Println("Needed space:", neededSpace)
-	log.Println("Foldersize to delete:", part2(neededSpace, sizes))
+	log.Println("All folders", part2(neededSpace, slices))
 }
 
-func part2(neededSpace int, sizes map[string]int) int {
-	var smallest int
-	for _, size := range sizes {
-		if size >= neededSpace && (smallest == 0 || size < smallest) {
-			smallest = size
+func part1(slices []int) int {
+	totalSize := 0
+
+	for _, size := range slices {
+		if size <= 100000 {
+			totalSize += size
 		}
 	}
-	return smallest
+	return totalSize
 }
 
-func UpdateSize(sizes map[string]int, newName string, newSize int) map[string]int {
-	foundSize, found := sizes[newName]
-	if !found || foundSize < newSize {
-		sizes[newName] = newSize
+func part2(requiredSpace int, slices []int) int {
+	smallest := math.MaxInt
+
+	for _, value := range slices {
+		if value > requiredSpace && value < smallest {
+			smallest = value
+		}
 	}
-	return sizes
+
+	return smallest
 }
